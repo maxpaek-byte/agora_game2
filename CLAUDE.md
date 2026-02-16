@@ -18,6 +18,7 @@ agora_game2/
 ## Tech Stack
 
 - **HTML5 / CSS3 / Canvas / Vanilla JavaScript** — no frameworks, no dependencies
+- **Supabase** (`@supabase/supabase-js` v2 via CDN) — leaderboard persistence
 - **Google Fonts**: JetBrains Mono (monospace), Space Grotesk (headings/buttons)
 - **No build system** — no package.json, no bundler, no transpiler
 - **No testing framework** — no unit or integration tests
@@ -59,17 +60,19 @@ States flow: `idle` → `playing` → `gameover`
 
 ### Key Global Variables
 
-| Variable    | Type       | Description                              |
-|-------------|------------|------------------------------------------|
-| `state`     | string     | Current game state                       |
-| `score`     | number     | Current session score                    |
-| `bestScore` | number     | Highest score (in-memory only)           |
-| `speed`     | number     | Current interval delay in ms (starts 150)|
-| `snake`     | {x,y}[]   | Array of snake segments (head at index 0)|
-| `dir`       | {x,y}      | Current movement direction               |
-| `nextDir`   | {x,y}      | Buffered next direction (prevents reversal) |
-| `food`      | {x,y}      | Current food position                    |
-| `loop`      | number     | setInterval reference                    |
+| Variable      | Type       | Description                              |
+|---------------|------------|------------------------------------------|
+| `state`       | string     | Current game state                       |
+| `score`       | number     | Current session score                    |
+| `bestScore`   | number     | Highest score (in-memory only)           |
+| `speed`       | number     | Current interval delay in ms (starts 150)|
+| `snake`       | {x,y}[]   | Array of snake segments (head at index 0)|
+| `dir`         | {x,y}      | Current movement direction               |
+| `nextDir`     | {x,y}      | Buffered next direction (prevents reversal) |
+| `food`        | {x,y}      | Current food position                    |
+| `loop`        | number     | setInterval reference                    |
+| `playerName`  | string     | Player name (persisted in localStorage)  |
+| `leaderboard` | object[]   | Cached top-10 scores from Supabase       |
 
 ### Core Functions
 
@@ -81,7 +84,11 @@ States flow: `idle` → `playing` → `gameover`
 | `startGame()`       | Resets all state, spawns food, starts game loop       |
 | `setDir(dx, dy)`    | Buffers direction change (prevents 180° reversal)    |
 | `tick()`            | Moves snake, checks collisions, handles eating       |
-| `gameOver()`        | Stops game loop, switches to gameover state           |
+| `gameOver()`        | Stops game loop, switches to gameover state, saves score |
+| `fetchLeaderboard()`| Fetches top-10 scores from Supabase                  |
+| `saveScore()`       | Inserts score record into Supabase                    |
+| `leaderboardHTML()` | Generates leaderboard table HTML                      |
+| `updateName()`      | Updates player name and persists to localStorage      |
 
 ### Game Mechanics
 
@@ -92,7 +99,9 @@ States flow: `idle` → `playing` → `gameover`
 - **Scoring**: +10 points per food
 - **Controls**: Arrow keys, WASD, or on-screen D-pad (mobile-friendly)
 - **Collision**: Wall hit or self-intersection ends the game
-- **Best score**: tracked in memory only (not persisted across sessions)
+- **Best score**: tracked in memory; all scores persisted to Supabase
+- **Leaderboard**: top-10 scores fetched from Supabase on load and after each game
+- **Player name**: stored in `localStorage` (`snake_player_name` key)
 
 ### Rendering
 
@@ -126,7 +135,25 @@ States flow: `idle` → `playing` → `gameover`
 - Canvas drawing logic goes in `drawCanvas()` or new helper functions
 - D-pad buttons are styled with `.dpad-btn` — add new controls there
 - Animations are defined as `@keyframes` at the bottom of the `<style>` block
-- To persist best scores, consider `localStorage`
+- Supabase client is initialized at the top of `<script>`; use `supabase.from('scores')` for DB operations
+
+## Supabase Setup
+
+The game uses a `scores` table in Supabase. Create it with the following SQL in the Supabase SQL Editor:
+
+```sql
+CREATE TABLE scores (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  player_name TEXT NOT NULL DEFAULT '익명',
+  score INT NOT NULL,
+  snake_length INT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE scores ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Anyone can read scores" ON scores FOR SELECT USING (true);
+CREATE POLICY "Anyone can insert scores" ON scores FOR INSERT WITH CHECK (true);
+```
 
 ## Deployment
 
