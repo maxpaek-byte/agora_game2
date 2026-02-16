@@ -12,7 +12,7 @@ Players memorize highlighted tile positions on a 4x4 grid and reproduce the patt
 agora_game2/
 ├── CLAUDE.md            # This file — AI assistant guide
 ├── README.md            # Brief project description (Korean)
-└── memory-grid.html     # Entire application (HTML + CSS + JS in one file)
+└── index.html           # Entire application (HTML + CSS + JS in one file)
 ```
 
 ## Tech Stack
@@ -25,13 +25,13 @@ agora_game2/
 
 ## How to Run
 
-Open `memory-grid.html` directly in any modern web browser. No server, build step, or installation required.
+Open `index.html` directly in any modern web browser. No server, build step, or installation required.
 
 ## Architecture
 
 ### Single-File Design
 
-All code lives in `memory-grid.html` (~294 lines):
+All code lives in `index.html` (~294 lines):
 - **Lines 1–7**: HTML head, meta tags, Google Fonts import
 - **Lines 8–147**: `<style>` block — all CSS (variables, grid layout, animations)
 - **Lines 149–294**: `<body>` with `<script>` — all game logic
@@ -123,4 +123,4 @@ States flow: `idle` → `showing` → `input` → `success`/`fail` → (repeat o
 
 ## Deployment
 
-The game can be deployed by serving `memory-grid.html` from any static file host. No build step needed.
+The game can be deployed by serving `index.html` from any static file host. No build step needed.
