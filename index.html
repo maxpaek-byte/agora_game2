@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MEMORY GRID</title>
+<title>SNAKE GAME</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
@@ -52,44 +52,13 @@
   .stat-value.accent{color:var(--accent)}
   .stat-value.gold{color:var(--gold)}
   .stat-value.dim{color:var(--text-dim)}
-  .heart{transition:opacity .3s}.heart.off{opacity:.2}
 
-  /* Grid */
-  .grid{
-    display:grid;grid-template-columns:repeat(4,1fr);gap:10px;
-    width:100%;max-width:340px;
+  /* Canvas */
+  canvas{
+    border-radius:14px;border:1.5px solid var(--border);
+    background:var(--tile);display:block;
+    image-rendering:pixelated;
   }
-  .cell{
-    aspect-ratio:1;border-radius:13px;border:1.5px solid var(--border);
-    background:var(--tile);cursor:pointer;position:relative;overflow:hidden;
-    transition:all .2s cubic-bezier(.4,0,.2,1);
-  }
-  .cell:hover{background:var(--tile-hover);border-color:var(--text-dim)}
-  .cell.active{
-    background:var(--accent);border-color:var(--accent);
-    box-shadow:0 0 22px var(--accent-glow),inset 0 0 12px var(--accent-glow);
-    transform:scale(1.04);
-  }
-  .cell.active::after{
-    content:'';position:absolute;inset:0;border-radius:13px;
-    background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.25),transparent 60%);
-  }
-  .cell.selected{background:var(--accent-dim);border-color:rgba(110,231,183,.35)}
-  .cell.correct{
-    background:var(--accent);border-color:var(--accent);
-    box-shadow:0 0 22px var(--accent-glow),inset 0 0 12px var(--accent-glow);
-    transform:scale(1.04);
-  }
-  .cell.correct::after{
-    content:'';position:absolute;inset:0;border-radius:13px;
-    background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.25),transparent 60%);
-  }
-  .cell.wrong{
-    background:var(--error);border-color:var(--error);
-    box-shadow:0 0 22px var(--error-glow),inset 0 0 12px var(--error-glow);
-    transform:scale(.93);
-  }
-  .cell.disabled{pointer-events:none}
 
   /* Panels */
   .panel{
@@ -117,33 +86,24 @@
   .result-item .result-label{font-size:10px;color:var(--text-dim);letter-spacing:1.5px}
   .result-item .result-val{font-size:30px;font-weight:700}
 
-  /* Status text */
-  .status{font-size:13px;animation:fadeUp .3s ease-out}
-  .status.memorize{color:var(--accent);animation:float 1.4s ease-in-out infinite}
-  .status.memorize::before{
-    content:'';display:inline-block;width:8px;height:8px;border-radius:50%;
-    background:var(--accent);margin-right:8px;vertical-align:middle;
-    box-shadow:0 0 10px var(--accent-glow);
-  }
-  .status.input{color:var(--text-dim)}
-
-  /* Message */
-  .message{
-    font-size:19px;font-family:'Space Grotesk',sans-serif;font-weight:700;
-    animation:slideDown .35s ease-out;min-height:28px;
-  }
-  .message.success{color:var(--accent);text-shadow:0 0 22px var(--accent-glow)}
-  .message.fail{color:var(--error);text-shadow:0 0 22px var(--error-glow)}
-
   .best-score{font-size:12px;color:var(--text-dim)}
   .best-score span{color:var(--gold);font-weight:600}
+
+  /* D-pad */
+  .dpad{display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(3,56px);gap:6px;margin-top:4px}
+  .dpad-btn{
+    border-radius:11px;border:1.5px solid var(--border);background:var(--surface);
+    color:var(--text);font-size:20px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:all .15s;user-select:none;-webkit-user-select:none;
+  }
+  .dpad-btn:active{background:var(--accent-dim);border-color:var(--accent);transform:scale(.92)}
+  .dpad-blank{visibility:hidden}
 
   /* Animations */
   @keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
   @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
   @keyframes slideDown{from{opacity:0;transform:translateY(-24px) scale(.85)}to{opacity:1;transform:translateY(0) scale(1)}}
-  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-5px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
-  @keyframes popIn{from{transform:scale(.7);opacity:0}to{transform:scale(1.04);opacity:1}}
 </style>
 </head>
 <body>
@@ -152,32 +112,24 @@
 
 <script>
 const $ = s => document.querySelector(s);
-const GRID = 4, TOTAL = GRID * GRID;
-let state = 'idle', level = 1, pattern = [], playerInput = [], score = 0, bestScore = 0, lives = 3, combo = 0, timer = null;
-
-const messages = ['완벽해요!','훌륭해요!','대단해요!','천재!','놀라워요!'];
-
-function genPattern(lvl) {
-  const count = Math.min(3 + lvl, 12);
-  const s = new Set();
-  while (s.size < count) s.add(Math.floor(Math.random() * TOTAL));
-  return [...s];
-}
+const COLS = 20, ROWS = 20, CELL = 17;
+let state = 'idle', score = 0, bestScore = 0, speed = 150;
+let snake, dir, nextDir, food, loop;
 
 function render() {
   const app = $('#app');
   let html = `
     <div style="text-align:center">
-      <div class="title">MEMORY GRID</div>
-      <div class="subtitle">패턴을 기억하세요</div>
+      <div class="title">SNAKE GAME</div>
+      <div class="subtitle">뱀을 조종하세요</div>
     </div>`;
 
   if (state === 'idle') {
     html += `
       <div class="panel">
-        <div class="panel-icon">🧩</div>
-        <div class="panel-title">패턴을 기억하세요</div>
-        <div class="panel-desc">빛나는 타일의 위치를 기억한 뒤<br>같은 타일을 클릭하세요!</div>
+        <div class="panel-icon">🐍</div>
+        <div class="panel-title">뱀 게임</div>
+        <div class="panel-desc">방향키로 뱀을 움직여<br>먹이를 먹고 점수를 올리세요!</div>
         <button class="btn" onclick="startGame()">게임 시작</button>
       </div>`;
     if (bestScore > 0) html += `<div class="best-score">최고 점수: <span>${bestScore}</span></div>`;
@@ -185,108 +137,164 @@ function render() {
   else if (state === 'gameover') {
     html += `
       <div class="panel">
-        <div class="panel-icon">🧠</div>
+        <div class="panel-icon">💀</div>
         <div class="panel-title">게임 오버</div>
         <div class="result-row">
           <div class="result-item"><div class="result-label">SCORE</div><div class="result-val" style="color:var(--accent)">${score}</div></div>
           <div class="result-item"><div class="result-label">BEST</div><div class="result-val" style="color:var(--gold)">${bestScore}</div></div>
-          <div class="result-item"><div class="result-label">LEVEL</div><div class="result-val">${level}</div></div>
+          <div class="result-item"><div class="result-label">LENGTH</div><div class="result-val">${snake.length}</div></div>
         </div>
         <button class="btn" onclick="startGame()">다시 도전</button>
       </div>`;
   }
   else {
-    // Stats
     html += `<div class="stats">
-      <div class="stat"><div class="stat-label">LEVEL</div><div class="stat-value">${level}</div></div>
       <div class="stat"><div class="stat-label">SCORE</div><div class="stat-value accent">${score}</div></div>
-      <div class="stat"><div class="stat-label">COMBO</div><div class="stat-value ${combo > 0 ? 'gold' : 'dim'}">x${combo}</div></div>
-      <div class="stat"><div class="stat-label">LIVES</div><div class="stat-value">${[0,1,2].map(i => `<span class="heart${i < lives ? '' : ' off'}">♥</span>`).join('')}</div></div>
+      <div class="stat"><div class="stat-label">LENGTH</div><div class="stat-value">${snake.length}</div></div>
+      <div class="stat"><div class="stat-label">SPEED</div><div class="stat-value ${speed <= 80 ? 'gold' : 'dim'}">${Math.round((200 - speed) / 10)}</div></div>
+      <div class="stat"><div class="stat-label">BEST</div><div class="stat-value gold">${bestScore}</div></div>
     </div>`;
-
-    // Message
-    const msgClass = state === 'fail' ? 'fail' : 'success';
-    const msgText = state === 'success' ? messages[Math.min(combo - 1, messages.length - 1)] : state === 'fail' ? '아쉬워요...' : '';
-    html += `<div class="message ${msgText ? msgClass : ''}">${msgText}</div>`;
-
-    // Status
-    if (state === 'showing') html += `<div class="status memorize">패턴을 기억하세요...</div>`;
-    else if (state === 'input') html += `<div class="status input">기억한 타일을 클릭하세요 (${playerInput.length}/${pattern.length})</div>`;
-    else html += `<div class="status">&nbsp;</div>`;
-
-    // Grid
-    html += `<div class="grid" id="grid" style="${state === 'fail' ? 'animation:shake .35s ease-in-out' : ''}">`;
-    for (let i = 0; i < TOTAL; i++) {
-      let cls = 'cell';
-      if (state === 'showing' && pattern.includes(i)) cls += ' active';
-      else if (state === 'input' && playerInput.includes(i)) cls += ' selected';
-      else if ((state === 'success' || state === 'checking') && pattern.includes(i)) cls += ' correct';
-      else if (state === 'fail') {
-        if (pattern.includes(i) && playerInput.includes(i)) cls += ' correct';
-        else if (pattern.includes(i)) cls += ' active';
-        else if (playerInput.includes(i)) cls += ' wrong';
-      }
-      if (state !== 'input') cls += ' disabled';
-      html += `<div class="${cls}" data-i="${i}" onclick="cellClick(${i})"></div>`;
-    }
-    html += `</div>`;
+    html += `<canvas id="canvas" width="${COLS * CELL}" height="${ROWS * CELL}"></canvas>`;
+    html += `
+    <div class="dpad">
+      <div class="dpad-blank"></div>
+      <div class="dpad-btn" ontouchstart="setDir(0,-1);event.preventDefault()" onclick="setDir(0,-1)">▲</div>
+      <div class="dpad-blank"></div>
+      <div class="dpad-btn" ontouchstart="setDir(-1,0);event.preventDefault()" onclick="setDir(-1,0)">◀</div>
+      <div class="dpad-blank"></div>
+      <div class="dpad-btn" ontouchstart="setDir(1,0);event.preventDefault()" onclick="setDir(1,0)">▶</div>
+      <div class="dpad-blank"></div>
+      <div class="dpad-btn" ontouchstart="setDir(0,1);event.preventDefault()" onclick="setDir(0,1)">▼</div>
+      <div class="dpad-blank"></div>
+    </div>`;
   }
   app.innerHTML = html;
+  if (state === 'playing') drawCanvas();
+}
+
+function drawCanvas() {
+  const cv = $('#canvas');
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, cv.width, cv.height);
+
+  // Grid lines
+  ctx.strokeStyle = '#1c1c2e';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x <= COLS; x++) {
+    ctx.beginPath(); ctx.moveTo(x * CELL, 0); ctx.lineTo(x * CELL, ROWS * CELL); ctx.stroke();
+  }
+  for (let y = 0; y <= ROWS; y++) {
+    ctx.beginPath(); ctx.moveTo(0, y * CELL); ctx.lineTo(COLS * CELL, y * CELL); ctx.stroke();
+  }
+
+  // Food
+  ctx.fillStyle = '#f87171';
+  ctx.shadowColor = 'rgba(248,113,113,0.5)';
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.arc(food.x * CELL + CELL / 2, food.y * CELL + CELL / 2, CELL / 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Snake
+  snake.forEach((seg, idx) => {
+    const isHead = idx === 0;
+    const t = idx / snake.length;
+    const r = Math.round(110 - t * 60);
+    const g = Math.round(231 - t * 80);
+    const b = Math.round(183 - t * 60);
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    if (isHead) {
+      ctx.shadowColor = 'rgba(110,231,183,0.4)';
+      ctx.shadowBlur = 12;
+    }
+    const pad = isHead ? 0.5 : 1;
+    ctx.beginPath();
+    ctx.roundRect(seg.x * CELL + pad, seg.y * CELL + pad, CELL - pad * 2, CELL - pad * 2, 4);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  });
+}
+
+function spawnFood() {
+  const occupied = new Set(snake.map(s => `${s.x},${s.y}`));
+  let fx, fy;
+  do {
+    fx = Math.floor(Math.random() * COLS);
+    fy = Math.floor(Math.random() * ROWS);
+  } while (occupied.has(`${fx},${fy}`));
+  food = { x: fx, y: fy };
 }
 
 function startGame() {
-  level = 1; score = 0; lives = 3; combo = 0;
-  startLevel(1);
-}
-
-function startLevel(lvl) {
-  clearTimeout(timer);
-  pattern = genPattern(lvl);
-  playerInput = [];
-  state = 'showing';
+  score = 0;
+  speed = 150;
+  snake = [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }];
+  dir = { x: 1, y: 0 };
+  nextDir = { x: 1, y: 0 };
+  spawnFood();
+  state = 'playing';
   render();
-
-  const showTime = Math.max(900, 2400 - lvl * 100);
-  timer = setTimeout(() => { state = 'input'; render(); }, showTime);
+  clearInterval(loop);
+  loop = setInterval(tick, speed);
 }
 
-function cellClick(i) {
-  if (state !== 'input') return;
-  if (playerInput.includes(i)) {
-    playerInput = playerInput.filter(x => x !== i);
-    render();
+function setDir(dx, dy) {
+  if (dir.x + dx === 0 && dir.y + dy === 0) return;
+  nextDir = { x: dx, y: dy };
+}
+
+function tick() {
+  dir = { ...nextDir };
+  const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+
+  // Wall collision
+  if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
+    return gameOver();
+  }
+  // Self collision
+  if (snake.some(s => s.x === head.x && s.y === head.y)) {
+    return gameOver();
+  }
+
+  snake.unshift(head);
+
+  if (head.x === food.x && head.y === food.y) {
+    score += 10;
+    if (score > bestScore) bestScore = score;
+    if (speed > 60) {
+      speed -= 3;
+      clearInterval(loop);
+      loop = setInterval(tick, speed);
+    }
+    spawnFood();
+  } else {
+    snake.pop();
+  }
+  render();
+}
+
+function gameOver() {
+  clearInterval(loop);
+  state = 'gameover';
+  render();
+}
+
+document.addEventListener('keydown', e => {
+  if (state === 'idle' || state === 'gameover') {
+    if (e.key === 'Enter' || e.key === ' ') { startGame(); e.preventDefault(); }
     return;
   }
-  playerInput.push(i);
-  render();
-  if (playerInput.length === pattern.length) checkAnswer();
-}
-
-function checkAnswer() {
-  const sortedI = [...playerInput].sort((a,b) => a - b);
-  const sortedP = [...pattern].sort((a,b) => a - b);
-  const correct = JSON.stringify(sortedI) === JSON.stringify(sortedP);
-
-  if (correct) {
-    combo++;
-    const pts = Math.round(level * 100 * (1 + combo * 0.2));
-    score += pts;
-    if (score > bestScore) bestScore = score;
-    state = 'success';
-    render();
-    timer = setTimeout(() => { level++; startLevel(level); }, 1100);
-  } else {
-    combo = 0;
-    lives--;
-    state = 'fail';
-    render();
-    if (lives <= 0) {
-      timer = setTimeout(() => { state = 'gameover'; render(); }, 1600);
-    } else {
-      timer = setTimeout(() => startLevel(level), 1600);
-    }
+  if (state !== 'playing') return;
+  switch (e.key) {
+    case 'ArrowUp':    case 'w': case 'W': setDir(0, -1); break;
+    case 'ArrowDown':  case 's': case 'S': setDir(0, 1); break;
+    case 'ArrowLeft':  case 'a': case 'A': setDir(-1, 0); break;
+    case 'ArrowRight': case 'd': case 'D': setDir(1, 0); break;
   }
-}
+  e.preventDefault();
+});
 
 render();
 </script>
