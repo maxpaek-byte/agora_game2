@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MEMORY GRID</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg:#07070d;--surface:#101018;--border:#1c1c2e;
+    --accent:#6ee7b7;--accent-dim:rgba(52,211,153,0.12);--accent-glow:rgba(110,231,183,0.25);
+    --text:#e2e8f0;--text-dim:#64748b;
+    --error:#f87171;--error-glow:rgba(248,113,113,0.25);
+    --gold:#fbbf24;--tile:#161626;--tile-hover:#222238;
+  }
+  body{
+    min-height:100vh;background:var(--bg);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'JetBrains Mono','Fira Code',monospace;color:var(--text);
+    overflow:hidden;
+  }
+  .bg-glow{
+    position:fixed;inset:0;pointer-events:none;
+    background:
+      radial-gradient(ellipse at 15% 50%,rgba(110,231,183,0.07),transparent 55%),
+      radial-gradient(ellipse at 85% 20%,rgba(139,92,246,0.06),transparent 50%);
+    animation:glowPulse 5s ease-in-out infinite alternate;
+  }
+  @keyframes glowPulse{0%{opacity:.6}100%{opacity:1}}
+
+  .app{position:relative;z-index:1;width:100%;max-width:440px;padding:20px;display:flex;flex-direction:column;align-items:center;gap:22px}
+
+  /* Title */
+  .title{
+    font-family:'Space Grotesk',sans-serif;font-size:30px;font-weight:700;
+    letter-spacing:-0.5px;
+    background:linear-gradient(135deg,var(--accent),#a78bfa);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  }
+  .subtitle{font-size:11px;color:var(--text-dim);letter-spacing:3px;text-transform:uppercase;margin-top:2px}
+
+  /* Stats bar */
+  .stats{
+    display:flex;justify-content:space-between;width:100%;
+    padding:14px 18px;background:var(--surface);border-radius:14px;
+    border:1px solid var(--border);animation:fadeUp .4s ease-out;
+  }
+  .stat{text-align:center;flex:1}
+  .stat-label{font-size:9px;color:var(--text-dim);letter-spacing:1.5px;margin-bottom:3px}
+  .stat-value{font-size:20px;font-weight:700}
+  .stat-value.accent{color:var(--accent)}
+  .stat-value.gold{color:var(--gold)}
+  .stat-value.dim{color:var(--text-dim)}
+  .heart{transition:opacity .3s}.heart.off{opacity:.2}
+
+  /* Grid */
+  .grid{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:10px;
+    width:100%;max-width:340px;
+  }
+  .cell{
+    aspect-ratio:1;border-radius:13px;border:1.5px solid var(--border);
+    background:var(--tile);cursor:pointer;position:relative;overflow:hidden;
+    transition:all .2s cubic-bezier(.4,0,.2,1);
+  }
+  .cell:hover{background:var(--tile-hover);border-color:var(--text-dim)}
+  .cell.active{
+    background:var(--accent);border-color:var(--accent);
+    box-shadow:0 0 22px var(--accent-glow),inset 0 0 12px var(--accent-glow);
+    transform:scale(1.04);
+  }
+  .cell.active::after{
+    content:'';position:absolute;inset:0;border-radius:13px;
+    background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.25),transparent 60%);
+  }
+  .cell.selected{background:var(--accent-dim);border-color:rgba(110,231,183,.35)}
+  .cell.correct{
+    background:var(--accent);border-color:var(--accent);
+    box-shadow:0 0 22px var(--accent-glow),inset 0 0 12px var(--accent-glow);
+    transform:scale(1.04);
+  }
+  .cell.correct::after{
+    content:'';position:absolute;inset:0;border-radius:13px;
+    background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.25),transparent 60%);
+  }
+  .cell.wrong{
+    background:var(--error);border-color:var(--error);
+    box-shadow:0 0 22px var(--error-glow),inset 0 0 12px var(--error-glow);
+    transform:scale(.93);
+  }
+  .cell.disabled{pointer-events:none}
+
+  /* Panels */
+  .panel{
+    text-align:center;padding:44px 28px;background:var(--surface);
+    border-radius:18px;border:1px solid var(--border);width:100%;
+    animation:fadeUp .6s ease-out;
+  }
+  .panel-icon{font-size:52px;margin-bottom:14px;animation:float 2.2s ease-in-out infinite}
+  .panel-title{font-family:'Space Grotesk',sans-serif;font-size:21px;font-weight:700;margin-bottom:6px}
+  .panel-desc{font-size:13px;color:var(--text-dim);line-height:1.7;margin-bottom:28px}
+
+  .btn{
+    padding:14px 48px;border-radius:11px;border:none;
+    background:linear-gradient(135deg,var(--accent),#a78bfa);
+    color:var(--bg);font-size:15px;font-weight:700;
+    font-family:'Space Grotesk',sans-serif;cursor:pointer;
+    letter-spacing:1px;transition:transform .2s,box-shadow .2s;
+    box-shadow:0 4px 22px var(--accent-glow);
+  }
+  .btn:hover{transform:translateY(-2px);box-shadow:0 8px 32px var(--accent-glow)}
+  .btn:active{transform:translateY(0)}
+
+  /* Result row */
+  .result-row{display:flex;justify-content:center;gap:36px;margin-bottom:26px}
+  .result-item .result-label{font-size:10px;color:var(--text-dim);letter-spacing:1.5px}
+  .result-item .result-val{font-size:30px;font-weight:700}
+
+  /* Status text */
+  .status{font-size:13px;animation:fadeUp .3s ease-out}
+  .status.memorize{color:var(--accent);animation:float 1.4s ease-in-out infinite}
+  .status.memorize::before{
+    content:'';display:inline-block;width:8px;height:8px;border-radius:50%;
+    background:var(--accent);margin-right:8px;vertical-align:middle;
+    box-shadow:0 0 10px var(--accent-glow);
+  }
+  .status.input{color:var(--text-dim)}
+
+  /* Message */
+  .message{
+    font-size:19px;font-family:'Space Grotesk',sans-serif;font-weight:700;
+    animation:slideDown .35s ease-out;min-height:28px;
+  }
+  .message.success{color:var(--accent);text-shadow:0 0 22px var(--accent-glow)}
+  .message.fail{color:var(--error);text-shadow:0 0 22px var(--error-glow)}
+
+  .best-score{font-size:12px;color:var(--text-dim)}
+  .best-score span{color:var(--gold);font-weight:600}
+
+  /* Animations */
+  @keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+  @keyframes slideDown{from{opacity:0;transform:translateY(-24px) scale(.85)}to{opacity:1;transform:translateY(0) scale(1)}}
+  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-5px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
+  @keyframes popIn{from{transform:scale(.7);opacity:0}to{transform:scale(1.04);opacity:1}}
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="app" id="app"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const GRID = 4, TOTAL = GRID * GRID;
+let state = 'idle', level = 1, pattern = [], playerInput = [], score = 0, bestScore = 0, lives = 3, combo = 0, timer = null;
+
+const messages = ['완벽해요!','훌륭해요!','대단해요!','천재!','놀라워요!'];
+
+function genPattern(lvl) {
+  const count = Math.min(3 + lvl, 12);
+  const s = new Set();
+  while (s.size < count) s.add(Math.floor(Math.random() * TOTAL));
+  return [...s];
+}
+
+function render() {
+  const app = $('#app');
+  let html = `
+    <div style="text-align:center">
+      <div class="title">MEMORY GRID</div>
+      <div class="subtitle">패턴을 기억하세요</div>
+    </div>`;
+
+  if (state === 'idle') {
+    html += `
+      <div class="panel">
+        <div class="panel-icon">🧩</div>
+        <div class="panel-title">패턴을 기억하세요</div>
+        <div class="panel-desc">빛나는 타일의 위치를 기억한 뒤<br>같은 타일을 클릭하세요!</div>
+        <button class="btn" onclick="startGame()">게임 시작</button>
+      </div>`;
+    if (bestScore > 0) html += `<div class="best-score">최고 점수: <span>${bestScore}</span></div>`;
+  }
+  else if (state === 'gameover') {
+    html += `
+      <div class="panel">
+        <div class="panel-icon">🧠</div>
+        <div class="panel-title">게임 오버</div>
+        <div class="result-row">
+          <div class="result-item"><div class="result-label">SCORE</div><div class="result-val" style="color:var(--accent)">${score}</div></div>
+          <div class="result-item"><div class="result-label">BEST</div><div class="result-val" style="color:var(--gold)">${bestScore}</div></div>
+          <div class="result-item"><div class="result-label">LEVEL</div><div class="result-val">${level}</div></div>
+        </div>
+        <button class="btn" onclick="startGame()">다시 도전</button>
+      </div>`;
+  }
+  else {
+    // Stats
+    html += `<div class="stats">
+      <div class="stat"><div class="stat-label">LEVEL</div><div class="stat-value">${level}</div></div>
+      <div class="stat"><div class="stat-label">SCORE</div><div class="stat-value accent">${score}</div></div>
+      <div class="stat"><div class="stat-label">COMBO</div><div class="stat-value ${combo > 0 ? 'gold' : 'dim'}">x${combo}</div></div>
+      <div class="stat"><div class="stat-label">LIVES</div><div class="stat-value">${[0,1,2].map(i => `<span class="heart${i < lives ? '' : ' off'}">♥</span>`).join('')}</div></div>
+    </div>`;
+
+    // Message
+    const msgClass = state === 'fail' ? 'fail' : 'success';
+    const msgText = state === 'success' ? messages[Math.min(combo - 1, messages.length - 1)] : state === 'fail' ? '아쉬워요...' : '';
+    html += `<div class="message ${msgText ? msgClass : ''}">${msgText}</div>`;
+
+    // Status
+    if (state === 'showing') html += `<div class="status memorize">패턴을 기억하세요...</div>`;
+    else if (state === 'input') html += `<div class="status input">기억한 타일을 클릭하세요 (${playerInput.length}/${pattern.length})</div>`;
+    else html += `<div class="status">&nbsp;</div>`;
+
+    // Grid
+    html += `<div class="grid" id="grid" style="${state === 'fail' ? 'animation:shake .35s ease-in-out' : ''}">`;
+    for (let i = 0; i < TOTAL; i++) {
+      let cls = 'cell';
+      if (state === 'showing' && pattern.includes(i)) cls += ' active';
+      else if (state === 'input' && playerInput.includes(i)) cls += ' selected';
+      else if ((state === 'success' || state === 'checking') && pattern.includes(i)) cls += ' correct';
+      else if (state === 'fail') {
+        if (pattern.includes(i) && playerInput.includes(i)) cls += ' correct';
+        else if (pattern.includes(i)) cls += ' active';
+        else if (playerInput.includes(i)) cls += ' wrong';
+      }
+      if (state !== 'input') cls += ' disabled';
+      html += `<div class="${cls}" data-i="${i}" onclick="cellClick(${i})"></div>`;
+    }
+    html += `</div>`;
+  }
+  app.innerHTML = html;
+}
+
+function startGame() {
+  level = 1; score = 0; lives = 3; combo = 0;
+  startLevel(1);
+}
+
+function startLevel(lvl) {
+  clearTimeout(timer);
+  pattern = genPattern(lvl);
+  playerInput = [];
+  state = 'showing';
+  render();
+
+  const showTime = Math.max(900, 2400 - lvl * 100);
+  timer = setTimeout(() => { state = 'input'; render(); }, showTime);
+}
+
+function cellClick(i) {
+  if (state !== 'input') return;
+  if (playerInput.includes(i)) {
+    playerInput = playerInput.filter(x => x !== i);
+    render();
+    return;
+  }
+  playerInput.push(i);
+  render();
+  if (playerInput.length === pattern.length) checkAnswer();
+}
+
+function checkAnswer() {
+  const sortedI = [...playerInput].sort((a,b) => a - b);
+  const sortedP = [...pattern].sort((a,b) => a - b);
+  const correct = JSON.stringify(sortedI) === JSON.stringify(sortedP);
+
+  if (correct) {
+    combo++;
+    const pts = Math.round(level * 100 * (1 + combo * 0.2));
+    score += pts;
+    if (score > bestScore) bestScore = score;
+    state = 'success';
+    render();
+    timer = setTimeout(() => { level++; startLevel(level); }, 1100);
+  } else {
+    combo = 0;
+    lives--;
+    state = 'fail';
+    render();
+    if (lives <= 0) {
+      timer = setTimeout(() => { state = 'gameover'; render(); }, 1600);
+    } else {
+      timer = setTimeout(() => startLevel(level), 1600);
+    }
+  }
+}
+
+render();
+</script>
+</body>
+</html>
