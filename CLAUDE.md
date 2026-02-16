@@ -2,9 +2,9 @@
 
 ## Project Overview
 
-**Memory Grid** is a single-file, client-side memory pattern game built with vanilla HTML, CSS, and JavaScript. Created as a class project for an Agora course. The interface is in Korean.
+**Snake Game** is a single-file, client-side snake game built with vanilla HTML, CSS, and JavaScript. Created as a class project for an Agora course. The interface is in Korean.
 
-Players memorize highlighted tile positions on a 4x4 grid and reproduce the pattern by clicking tiles. Difficulty increases each level with more tiles and shorter display times.
+Players control a snake using arrow keys (or WASD / on-screen D-pad) to eat food and grow longer. The snake speeds up as the score increases. The game ends when the snake hits a wall or itself.
 
 ## Repository Structure
 
@@ -17,7 +17,7 @@ agora_game2/
 
 ## Tech Stack
 
-- **HTML5 / CSS3 / Vanilla JavaScript** — no frameworks, no dependencies
+- **HTML5 / CSS3 / Canvas / Vanilla JavaScript** — no frameworks, no dependencies
 - **Google Fonts**: JetBrains Mono (monospace), Space Grotesk (headings/buttons)
 - **No build system** — no package.json, no bundler, no transpiler
 - **No testing framework** — no unit or integration tests
@@ -31,10 +31,10 @@ Open `index.html` directly in any modern web browser. No server, build step, or 
 
 ### Single-File Design
 
-All code lives in `index.html` (~294 lines):
+All code lives in `index.html` (~302 lines):
 - **Lines 1–7**: HTML head, meta tags, Google Fonts import
-- **Lines 8–147**: `<style>` block — all CSS (variables, grid layout, animations)
-- **Lines 149–294**: `<body>` with `<script>` — all game logic
+- **Lines 8–107**: `<style>` block — all CSS (variables, canvas, D-pad, animations)
+- **Lines 109–302**: `<body>` with `<script>` — all game logic
 
 ### CSS Custom Properties (`:root`)
 
@@ -43,81 +43,88 @@ All code lives in `index.html` (~294 lines):
 | `--bg`          | Page background          | `#07070d`         |
 | `--surface`     | Card/panel background    | `#101018`         |
 | `--accent`      | Primary accent (teal)    | `#6ee7b7`         |
-| `--error`       | Failure indicator (red)  | `#f87171`         |
-| `--gold`        | Combo/best score color   | `#fbbf24`         |
-| `--tile`        | Default tile color       | `#161626`         |
+| `--error`       | Food color (red)         | `#f87171`         |
+| `--gold`        | Best score color         | `#fbbf24`         |
+| `--tile`        | Canvas background        | `#161626`         |
 
 ### Game State Machine
 
-States flow: `idle` → `showing` → `input` → `success`/`fail` → (repeat or `gameover`)
+States flow: `idle` → `playing` → `gameover`
 
 | State      | Description                                    |
 |------------|------------------------------------------------|
 | `idle`     | Start screen with play button                  |
-| `showing`  | Pattern tiles glow for memorization            |
-| `input`    | Player clicks tiles (supports deselection)     |
-| `checking` | Validating player input                        |
-| `success`  | Correct answer — brief feedback then next level|
-| `fail`     | Wrong answer — lose a life, shake animation    |
-| `gameover` | All 3 lives lost, final score displayed        |
+| `playing`  | Snake moves on interval; player controls direction |
+| `gameover` | Snake hit wall or itself; final score displayed |
 
 ### Key Global Variables
 
-| Variable      | Type     | Description                          |
-|---------------|----------|--------------------------------------|
-| `state`       | string   | Current game state                   |
-| `level`       | number   | Current level (starts at 1)          |
-| `pattern`     | number[] | Tile indices to memorize             |
-| `playerInput` | number[] | Tiles the player has clicked         |
-| `score`       | number   | Current session score                |
-| `bestScore`   | number   | Highest score (in-memory only)       |
-| `lives`       | number   | Remaining lives (starts at 3)        |
-| `combo`       | number   | Consecutive correct answer streak    |
-| `timer`       | number   | setTimeout reference                 |
+| Variable    | Type       | Description                              |
+|-------------|------------|------------------------------------------|
+| `state`     | string     | Current game state                       |
+| `score`     | number     | Current session score                    |
+| `bestScore` | number     | Highest score (in-memory only)           |
+| `speed`     | number     | Current interval delay in ms (starts 150)|
+| `snake`     | {x,y}[]   | Array of snake segments (head at index 0)|
+| `dir`       | {x,y}      | Current movement direction               |
+| `nextDir`   | {x,y}      | Buffered next direction (prevents reversal) |
+| `food`      | {x,y}      | Current food position                    |
+| `loop`      | number     | setInterval reference                    |
 
 ### Core Functions
 
 | Function            | Purpose                                              |
 |---------------------|------------------------------------------------------|
-| `genPattern(lvl)`   | Generates random non-repeating tile indices; count = `min(3 + lvl, 12)` |
-| `render()`          | Rebuilds entire UI via `innerHTML` based on current state |
-| `startGame()`       | Resets all state and starts level 1                  |
-| `startLevel(lvl)`   | Generates pattern, shows it, then transitions to input after timeout |
-| `cellClick(i)`      | Handles tile toggle (select/deselect); auto-checks when count matches |
-| `checkAnswer()`     | Compares sorted arrays; updates score, combo, lives  |
+| `render()`          | Rebuilds UI via `innerHTML` based on state; calls `drawCanvas()` when playing |
+| `drawCanvas()`      | Draws grid lines, food (circle with glow), and snake (gradient body with glow head) on canvas |
+| `spawnFood()`       | Places food at random unoccupied cell                |
+| `startGame()`       | Resets all state, spawns food, starts game loop       |
+| `setDir(dx, dy)`    | Buffers direction change (prevents 180° reversal)    |
+| `tick()`            | Moves snake, checks collisions, handles eating       |
+| `gameOver()`        | Stops game loop, switches to gameover state           |
 
 ### Game Mechanics
 
-- **Grid size**: 4x4 (16 tiles)
-- **Pattern length**: `min(3 + level, 12)` tiles
-- **Show duration**: `max(900ms, 2400ms - level * 100ms)` — gets faster each level
-- **Scoring**: `level * 100 * (1 + combo * 0.2)` points per correct answer
-- **Lives**: 3 total; wrong answer costs 1 life and resets combo
+- **Board size**: 20x20 cells, 17px per cell (canvas: 340x340)
+- **Initial snake**: 3 segments starting at (10,10) moving right
+- **Initial speed**: 150ms per tick
+- **Speed increase**: -3ms per food eaten (minimum 60ms)
+- **Scoring**: +10 points per food
+- **Controls**: Arrow keys, WASD, or on-screen D-pad (mobile-friendly)
+- **Collision**: Wall hit or self-intersection ends the game
 - **Best score**: tracked in memory only (not persisted across sessions)
+
+### Rendering
+
+- The game board uses HTML5 `<canvas>` with `CanvasRenderingContext2D`
+- Snake body has a gradient from head (bright teal) to tail (darker)
+- Snake head has a glow effect (`shadowBlur`)
+- Food is drawn as a red circle with glow
+- Grid lines are drawn as subtle borders
 
 ## Development Conventions
 
 ### When Modifying This Project
 
 - All code is in a single file — keep it that way unless the project scope grows significantly
-- The UI renders by replacing `innerHTML` of `#app` on every state change (no virtual DOM, no diffing)
+- The UI panels (idle/gameover) render by replacing `innerHTML` of `#app`; the game board uses `<canvas>`
 - CSS uses custom properties defined in `:root` — use them for consistency
 - The interface language is Korean — maintain Korean strings for user-facing text
-- Game messages are in the `messages` array: `['완벽해요!','훌륭해요!','대단해요!','천재!','놀라워요!']`
 - No semicolons are omitted in JS — keep semicolons consistent
-- Inline `onclick` handlers are used on HTML elements generated in `render()`
+- Inline `onclick` / `ontouchstart` handlers are used on HTML elements generated in `render()`
 
 ### Code Style
 
 - Compact CSS: single-line declarations for simple rules
 - Template literals for HTML generation inside `render()`
-- Minimal variable names (e.g., `$` for `querySelector`, `lvl` for level, `i` for index)
+- Minimal variable names (e.g., `$` for `querySelector`)
 - No modules or imports — everything is in global scope
 
 ### Adding Features
 
 - New game states should be added to the state machine and handled in `render()`
-- New CSS classes for tile states go alongside `.cell.active`, `.cell.selected`, `.cell.correct`, `.cell.wrong`
+- Canvas drawing logic goes in `drawCanvas()` or new helper functions
+- D-pad buttons are styled with `.dpad-btn` — add new controls there
 - Animations are defined as `@keyframes` at the bottom of the `<style>` block
 - To persist best scores, consider `localStorage`
 
