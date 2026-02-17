@@ -191,13 +191,14 @@ async function fetchLeaderboard() {
 async function saveScore(name, sc, len) {
   savingScore = true;
   render();
+  alert('[DEBUG] saveScore 호출됨: ' + name + ', 점수=' + sc + ', 길이=' + len);
   try {
-    const { data, error } = await supabase
+    const res = await supabase
       .from('scores')
       .insert([{ player_name: name, score: sc, snake_length: len }])
       .select();
-    if (error) throw error;
-    console.log('점수 저장 성공:', data);
+    alert('[DEBUG] Supabase 응답: data=' + JSON.stringify(res.data) + ', error=' + JSON.stringify(res.error));
+    if (res.error) throw res.error;
   } catch (e) {
     console.error('점수 저장 실패:', e);
     alert('점수 저장 실패: ' + (e.message || JSON.stringify(e)));
