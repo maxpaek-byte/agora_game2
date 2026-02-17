@@ -181,6 +181,7 @@ async function fetchLeaderboard() {
     leaderboard = data || [];
   } catch (e) {
     console.error('리더보드 로딩 실패:', e);
+    alert('리더보드 로딩 실패: ' + (e.message || JSON.stringify(e)));
     leaderboard = [];
   }
   lbLoading = false;
@@ -191,12 +192,15 @@ async function saveScore(name, sc, len) {
   savingScore = true;
   render();
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('scores')
-      .insert([{ player_name: name, score: sc, snake_length: len }]);
+      .insert([{ player_name: name, score: sc, snake_length: len }])
+      .select();
     if (error) throw error;
+    console.log('점수 저장 성공:', data);
   } catch (e) {
     console.error('점수 저장 실패:', e);
+    alert('점수 저장 실패: ' + (e.message || JSON.stringify(e)));
   }
   savingScore = false;
   await fetchLeaderboard();
