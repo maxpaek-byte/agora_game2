@@ -183,6 +183,7 @@ async function fetchLeaderboard() {
 }
 
 async function saveScore(name, sc, len) {
+  console.log('[saveScore] 호출됨:', { name, sc, len });
   savingScore = true;
   render();
   try {
@@ -191,9 +192,11 @@ async function saveScore(name, sc, len) {
       headers: { ...sbHeaders, 'Prefer': 'return=representation' },
       body: JSON.stringify({ player_name: name, score: sc, snake_length: len })
     });
-    if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + await res.text());
+    const text = await res.text();
+    console.log('[saveScore] 응답:', res.status, text);
+    if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + text);
   } catch (e) {
-    console.error('점수 저장 실패:', e);
+    console.error('[saveScore] 점수 저장 실패:', e);
   }
   savingScore = false;
   await fetchLeaderboard();
