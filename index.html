@@ -3,9 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SNAKE GAME v2</title>
+<title>SNAKE GAME</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   :root{
@@ -154,10 +153,10 @@
 const $ = s => document.querySelector(s);
 const COLS = 20, ROWS = 20, CELL = 17;
 
-/* ── Supabase ── */
-const SUPABASE_URL = 'https://zwifavxiicgirieolbon.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp3aWZhdnhpaWNnaXJpZW9sYm9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNTg2MzEsImV4cCI6MjA4NjgzNDYzMX0.3gjdIf2LLUtaDpfxYX19NS7no380YaiLG5aekAhzITQ';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+/* ── Supabase REST API ── */
+const SB_URL = 'https://zwifavxiicgirieolbon.supabase.co/rest/v1';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp3aWZhdnhpaWNnaXJpZW9sYm9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNTg2MzEsImV4cCI6MjA4NjgzNDYzMX0.3gjdIf2LLUtaDpfxYX19NS7no380YaiLG5aekAhzITQ';
+const sbHeaders = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
 
 /* ── Game State ── */
 let state = 'idle', score = 0, bestScore = 0, speed = 150;
@@ -172,16 +171,11 @@ async function fetchLeaderboard() {
   lbLoading = true;
   renderLeaderboard();
   try {
-    const { data, error } = await supabase
-      .from('scores')
-      .select('*')
-      .order('score', { ascending: false })
-      .limit(10);
-    if (error) throw error;
-    leaderboard = data || [];
+    const res = await fetch(SB_URL + '/scores?select=*&order=score.desc&limit=10', { headers: sbHeaders });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    leaderboard = await res.json();
   } catch (e) {
     console.error('리더보드 로딩 실패:', e);
-    alert('리더보드 로딩 실패: ' + (e.message || JSON.stringify(e)));
     leaderboard = [];
   }
   lbLoading = false;
@@ -191,17 +185,15 @@ async function fetchLeaderboard() {
 async function saveScore(name, sc, len) {
   savingScore = true;
   render();
-  alert('[DEBUG] saveScore 호출됨: ' + name + ', 점수=' + sc + ', 길이=' + len);
   try {
-    const res = await supabase
-      .from('scores')
-      .insert([{ player_name: name, score: sc, snake_length: len }])
-      .select();
-    alert('[DEBUG] Supabase 응답: data=' + JSON.stringify(res.data) + ', error=' + JSON.stringify(res.error));
-    if (res.error) throw res.error;
+    const res = await fetch(SB_URL + '/scores', {
+      method: 'POST',
+      headers: { ...sbHeaders, 'Prefer': 'return=representation' },
+      body: JSON.stringify({ player_name: name, score: sc, snake_length: len })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + await res.text());
   } catch (e) {
     console.error('점수 저장 실패:', e);
-    alert('점수 저장 실패: ' + (e.message || JSON.stringify(e)));
   }
   savingScore = false;
   await fetchLeaderboard();
@@ -414,7 +406,6 @@ function tick() {
 function gameOver() {
   clearInterval(loop);
   state = 'gameover';
-  alert('[v2] gameOver 호출! score=' + score);
   render();
   saveScore(playerName || '익명', score, snake.length);
 }
