@@ -171,7 +171,7 @@ async function fetchLeaderboard() {
   lbLoading = true;
   renderLeaderboard();
   try {
-    const res = await fetch(SB_URL + '/scores?select=*&order=score.desc&limit=10', { headers: sbHeaders });
+    const res = await fetch(SB_URL + '/scores?select=*&order=score.desc&limit=10&player_name=neq.%ED%85%8C%EC%8A%A4%ED%8A%B8', { headers: sbHeaders });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     leaderboard = await res.json();
   } catch (e) {
@@ -183,7 +183,6 @@ async function fetchLeaderboard() {
 }
 
 async function saveScore(name, sc, len) {
-  console.log('[saveScore] 호출됨:', { name, sc, len });
   savingScore = true;
   render();
   try {
@@ -192,11 +191,9 @@ async function saveScore(name, sc, len) {
       headers: { ...sbHeaders, 'Prefer': 'return=representation' },
       body: JSON.stringify({ player_name: name, score: sc, snake_length: len })
     });
-    const text = await res.text();
-    console.log('[saveScore] 응답:', res.status, text);
-    if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + text);
+    if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + await res.text());
   } catch (e) {
-    console.error('[saveScore] 점수 저장 실패:', e);
+    console.error('점수 저장 실패:', e);
   }
   savingScore = false;
   await fetchLeaderboard();
